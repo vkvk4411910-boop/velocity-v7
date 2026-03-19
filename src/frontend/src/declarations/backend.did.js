@@ -36,9 +36,11 @@ export const OrderStatus = IDL.Variant({
   'delivered' : IDL.Null,
 });
 export const Time = IDL.Int;
-export const CartItem = IDL.Record({
+export const OrderItem = IDL.Record({
   'productId' : IDL.Nat,
+  'productName' : IDL.Text,
   'quantity' : IDL.Nat,
+  'priceCents' : IDL.Nat,
 });
 export const Order = IDL.Record({
   'id' : IDL.Nat,
@@ -46,9 +48,19 @@ export const Order = IDL.Record({
   'createdAt' : Time,
   'totalCents' : IDL.Nat,
   'user' : IDL.Principal,
-  'items' : IDL.Vec(CartItem),
+  'items' : IDL.Vec(OrderItem),
 });
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
+export const CartItem = IDL.Record({
+  'productId' : IDL.Nat,
+  'quantity' : IDL.Nat,
+});
+export const LoginRecord = IDL.Record({
+  'principal' : IDL.Principal,
+  'name' : IDL.Text,
+  'loginCount' : IDL.Nat,
+  'lastLogin' : Time,
+});
 export const StripeSessionStatus = IDL.Variant({
   'completed' : IDL.Record({
     'userPrincipal' : IDL.Opt(IDL.Text),
@@ -97,9 +109,19 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getAllOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
+  'getAllUserProfiles' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Text, UserProfile))],
+      ['query'],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getCart' : IDL.Func([], [IDL.Vec(CartItem)], ['query']),
+  'getLoginHistory' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Text, LoginRecord))],
+      ['query'],
+    ),
   'getOrder' : IDL.Func([IDL.Nat], [IDL.Opt(Order)], ['query']),
   'getOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
   'getProduct' : IDL.Func([IDL.Nat], [IDL.Opt(Product)], ['query']),
@@ -113,6 +135,8 @@ export const idlService = IDL.Service({
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'listProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
   'placeOrder' : IDL.Func([], [IDL.Nat], []),
+  'placeOrderDirect' : IDL.Func([IDL.Vec(OrderItem), IDL.Nat], [IDL.Nat], []),
+  'recordLogin' : IDL.Func([], [], []),
   'removeFromCart' : IDL.Func([IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
@@ -156,16 +180,28 @@ export const idlFactory = ({ IDL }) => {
     'delivered' : IDL.Null,
   });
   const Time = IDL.Int;
-  const CartItem = IDL.Record({ 'productId' : IDL.Nat, 'quantity' : IDL.Nat });
+  const OrderItem = IDL.Record({
+    'productId' : IDL.Nat,
+    'productName' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'priceCents' : IDL.Nat,
+  });
   const Order = IDL.Record({
     'id' : IDL.Nat,
     'status' : OrderStatus,
     'createdAt' : Time,
     'totalCents' : IDL.Nat,
     'user' : IDL.Principal,
-    'items' : IDL.Vec(CartItem),
+    'items' : IDL.Vec(OrderItem),
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
+  const CartItem = IDL.Record({ 'productId' : IDL.Nat, 'quantity' : IDL.Nat });
+  const LoginRecord = IDL.Record({
+    'principal' : IDL.Principal,
+    'name' : IDL.Text,
+    'loginCount' : IDL.Nat,
+    'lastLogin' : Time,
+  });
   const StripeSessionStatus = IDL.Variant({
     'completed' : IDL.Record({
       'userPrincipal' : IDL.Opt(IDL.Text),
@@ -211,9 +247,19 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getAllOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
+    'getAllUserProfiles' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, UserProfile))],
+        ['query'],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCart' : IDL.Func([], [IDL.Vec(CartItem)], ['query']),
+    'getLoginHistory' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, LoginRecord))],
+        ['query'],
+      ),
     'getOrder' : IDL.Func([IDL.Nat], [IDL.Opt(Order)], ['query']),
     'getOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
     'getProduct' : IDL.Func([IDL.Nat], [IDL.Opt(Product)], ['query']),
@@ -227,6 +273,8 @@ export const idlFactory = ({ IDL }) => {
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'listProducts' : IDL.Func([], [IDL.Vec(Product)], ['query']),
     'placeOrder' : IDL.Func([], [IDL.Nat], []),
+    'placeOrderDirect' : IDL.Func([IDL.Vec(OrderItem), IDL.Nat], [IDL.Nat], []),
+    'recordLogin' : IDL.Func([], [], []),
     'removeFromCart' : IDL.Func([IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),

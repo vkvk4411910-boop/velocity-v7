@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  CartItem,
   Order,
+  OrderItem,
   OrderStatus,
   Product,
   ShoppingItem,
@@ -87,6 +89,18 @@ export function useAllOrders() {
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllOrders();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAllUserProfiles() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Array<[string, UserProfile]>>({
+    queryKey: ["allUserProfiles"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllUserProfiles();
     },
     enabled: !!actor && !isFetching,
   });
@@ -197,5 +211,49 @@ export function useCreateCheckoutSession() {
       if (!actor) throw new Error("Not connected");
       return actor.createCheckoutSession(items, successUrl, cancelUrl);
     },
+  });
+}
+
+export function usePlaceOrderDirect() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      items,
+      totalCents,
+    }: {
+      items: OrderItem[];
+      totalCents: bigint;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.placeOrderDirect(items, totalCents);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+// Legacy - kept for compatibility
+export function useAddToCart() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async ({
+      productId,
+      quantity,
+    }: { productId: bigint; quantity: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.addToCart(productId, quantity);
+    },
+  });
+}
+
+export function useGetCart() {
+  const { actor, isFetching } = useActor();
+  return useQuery<CartItem[]>({
+    queryKey: ["cart"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getCart();
+    },
+    enabled: !!actor && !isFetching,
   });
 }

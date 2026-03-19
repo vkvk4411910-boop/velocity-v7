@@ -13,13 +13,19 @@ export interface TransformationOutput {
     headers: Array<http_header>;
 }
 export type Time = bigint;
+export interface OrderItem {
+    productId: bigint;
+    productName: string;
+    quantity: bigint;
+    priceCents: bigint;
+}
 export interface Order {
     id: bigint;
     status: OrderStatus;
     createdAt: Time;
     totalCents: bigint;
     user: Principal;
-    items: Array<CartItem>;
+    items: Array<OrderItem>;
 }
 export interface http_header {
     value: string;
@@ -40,6 +46,12 @@ export interface ShoppingItem {
 export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
+}
+export interface LoginRecord {
+    principal: Principal;
+    name: string;
+    loginCount: bigint;
+    lastLogin: Time;
 }
 export type StripeSessionStatus = {
     __kind__: "completed";
@@ -93,9 +105,11 @@ export interface backendInterface {
     deleteProduct(productId: bigint): Promise<void>;
     filterProductsByCategory(category: string): Promise<Array<Product>>;
     getAllOrders(): Promise<Array<Order>>;
+    getAllUserProfiles(): Promise<Array<[string, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCart(): Promise<Array<CartItem>>;
+    getLoginHistory(): Promise<Array<[string, LoginRecord]>>;
     getOrder(orderId: bigint): Promise<Order | null>;
     getOrders(): Promise<Array<Order>>;
     getProduct(productId: bigint): Promise<Product | null>;
@@ -105,6 +119,8 @@ export interface backendInterface {
     isStripeConfigured(): Promise<boolean>;
     listProducts(): Promise<Array<Product>>;
     placeOrder(): Promise<bigint>;
+    placeOrderDirect(items: Array<OrderItem>, totalCents: bigint): Promise<bigint>;
+    recordLogin(): Promise<void>;
     removeFromCart(productId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;

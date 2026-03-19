@@ -1,11 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Minus,
+  Plus,
+  ShoppingBag,
+  ShoppingCart,
+  Trash2,
+  X,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useCreateCheckoutSession } from "../hooks/useQueries";
 import { useCartStore } from "../store/cartStore";
 
 export function CartSidebar() {
@@ -13,41 +21,54 @@ export function CartSidebar() {
   const { isOpen, items, closeCart, removeItem, updateQuantity, clearCart } =
     cartStore;
   const totalCents = cartStore.totalCents();
-  const { mutateAsync: createCheckout, isPending } = useCreateCheckoutSession();
   const { identity } = useInternetIdentity();
-  const [loading, setLoading] = useState(false);
+  const { actor, isFetching: actorFetching } = useActor();
+  const actorReady = !!actor && !actorFetching;
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const queryClient = useQueryClient();
 
-  async function handleCheckout() {
+  async function handleBuyNow() {
     if (!identity) {
-      toast.error("Please sign in to checkout");
+      toast.error("Please sign in to place an order.");
+      return;
+    }
+    if (!actor) {
+      toast.error("Still connecting, please wait a moment.");
       return;
     }
     if (items.length === 0) return;
 
-    setLoading(true);
+    setPlacingOrder(true);
     try {
-      const shoppingItems = items.map((item) => ({
+      const orderItems = items.map((item) => ({
+        productId: BigInt(0),
         productName: item.name,
-        currency: "usd",
         quantity: BigInt(item.quantity),
-        priceInCents: BigInt(item.priceCents),
-        productDescription: item.name,
+        priceCents: BigInt(item.priceCents),
       }));
 
-      const successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
-      const cancelUrl = `${window.location.origin}/checkout/cancel`;
+      await actor.placeOrderDirect(orderItems, BigInt(Math.round(totalCents)));
 
-      const url = await createCheckout({
-        items: shoppingItems,
-        successUrl,
-        cancelUrl,
-      });
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.refetchQueries({ queryKey: ["orders"] });
+
       clearCart();
-      window.location.href = url;
-    } catch {
-      toast.error("Checkout failed. Please ensure Stripe is configured.");
+      closeCart();
+      toast.success("Order saved! Open Dashboard to see your order.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("sign in") || msg.includes("Unauthorized")) {
+        toast.error("Session expired. Please sign out and sign in again.");
+      } else if (
+        msg.includes("Cart is empty") ||
+        msg.includes("at least one")
+      ) {
+        toast.error("Your cart is empty.");
+      } else {
+        toast.error(`Order failed: ${msg || "Please try again."}`);
+      }
     } finally {
-      setLoading(false);
+      setPlacingOrder(false);
     }
   }
 
@@ -124,7 +145,7 @@ export function CartSidebar() {
                         {item.name}
                       </p>
                       <p className="text-gold text-sm font-bold">
-                        ${(item.priceCents / 100).toFixed(2)}
+                        ₹{(item.priceCents / 100).toFixed(0)}
                       </p>
                       <div className="flex items-center gap-2 mt-2">
                         <button
@@ -164,22 +185,42 @@ export function CartSidebar() {
             </div>
 
             {items.length > 0 && (
-              <div className="p-6 border-t border-gold/20 space-y-4">
+              <div className="p-6 border-t border-gold/20 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-display text-xl gold-text">
-                    ${(totalCents / 100).toFixed(2)}
+                    ₹{(totalCents / 100).toFixed(0)}
                   </span>
                 </div>
                 <Separator className="bg-gold/20" />
+
+                {!identity && (
+                  <p className="text-center text-xs text-amber-400 py-1">
+                    Sign in to place orders
+                  </p>
+                )}
+
                 <Button
-                  className="w-full bg-gold hover:bg-gold-bright text-black font-bold tracking-widest"
-                  onClick={handleCheckout}
-                  disabled={loading || isPending}
-                  data-ocid="cart.submit_button"
+                  className="w-full bg-gold hover:bg-yellow-400 text-black font-bold tracking-widest gap-2 py-6 text-base shadow-lg shadow-gold/20"
+                  onClick={handleBuyNow}
+                  disabled={placingOrder || !identity || !actorReady}
+                  title={
+                    !identity
+                      ? "Sign in to place an order"
+                      : !actorReady
+                        ? "Connecting to server..."
+                        : "Save order to your dashboard"
+                  }
+                  data-ocid="cart.buy_now_button"
                 >
-                  {loading ? "Redirecting..." : "CHECKOUT WITH STRIPE"}
+                  <ShoppingCart className="w-5 h-5" />
+                  {placingOrder
+                    ? "SAVING ORDER..."
+                    : actorFetching && !!identity
+                      ? "CONNECTING..."
+                      : "BUY NOW — SAVE ORDER"}
                 </Button>
+
                 <Button
                   variant="ghost"
                   className="w-full text-muted-foreground hover:text-foreground text-xs"

@@ -26,8 +26,11 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertTriangle,
   Check,
+  CheckCircle2,
   Edit2,
+  ExternalLink,
   Loader2,
   Plus,
   RefreshCw,
@@ -191,7 +194,7 @@ export function AdminPage() {
   const [newProductOpen, setNewProductOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [stripeKey, setStripeKey] = useState("");
-  const [stripeCountries, setStripeCountries] = useState("US,GB,CA,AU");
+  const [stripeCountries, setStripeCountries] = useState("IN,US,GB,CA,AU");
 
   if (!identity) {
     return (
@@ -278,7 +281,9 @@ export function AdminPage() {
         secretKey: stripeKey,
         allowedCountries: stripeCountries.split(",").map((c) => c.trim()),
       });
-      toast.success("Stripe configured");
+      toast.success(
+        "Stripe configured successfully! Card checkout is now active.",
+      );
       setStripeKey("");
     } catch {
       toast.error("Failed to save Stripe config");
@@ -329,6 +334,7 @@ export function AdminPage() {
             </TabsTrigger>
           </TabsList>
 
+          {/* PRODUCTS TAB */}
           <TabsContent value="products">
             <div className="flex justify-between items-center mb-6">
               <h2 className="font-display text-2xl tracking-widest">
@@ -423,7 +429,7 @@ export function AdminPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-gold">
-                            ${(Number(product.priceCents) / 100).toFixed(2)}
+                            ₹{(Number(product.priceCents) / 100).toFixed(2)}
                           </TableCell>
                           <TableCell>{Number(product.stock)}</TableCell>
                           <TableCell>
@@ -490,6 +496,7 @@ export function AdminPage() {
             )}
           </TabsContent>
 
+          {/* ORDERS TAB */}
           <TabsContent value="orders">
             <h2 className="font-display text-2xl tracking-widest mb-6">
               ALL ORDERS
@@ -509,7 +516,13 @@ export function AdminPage() {
                   <TableHeader>
                     <TableRow className="border-gold/20">
                       <TableHead className="text-gold/70 text-xs tracking-widest">
-                        ORDER ID
+                        ORDER
+                      </TableHead>
+                      <TableHead className="text-gold/70 text-xs tracking-widest">
+                        BUYER
+                      </TableHead>
+                      <TableHead className="text-gold/70 text-xs tracking-widest">
+                        ITEMS BOUGHT
                       </TableHead>
                       <TableHead className="text-gold/70 text-xs tracking-widest">
                         TOTAL
@@ -526,7 +539,7 @@ export function AdminPage() {
                     {(orders || []).length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={4}
+                          colSpan={6}
                           className="text-center text-muted-foreground py-8"
                           data-ocid="admin.empty_state"
                         >
@@ -534,52 +547,90 @@ export function AdminPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      (orders || []).map((order) => (
-                        <TableRow
-                          key={order.id.toString()}
-                          className="border-gold/10 hover:bg-gold/5"
-                          data-ocid="admin.row"
-                        >
-                          <TableCell className="font-mono text-sm">
-                            #{order.id.toString()}
-                          </TableCell>
-                          <TableCell className="text-gold">
-                            ${(Number(order.totalCents) / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="text-[10px] tracking-widest">
-                              {order.status.toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={order.status}
-                              onValueChange={(v) =>
-                                handleStatusUpdate(order.id, v as OrderStatus)
-                              }
-                              disabled={updatingStatus}
-                            >
-                              <SelectTrigger
-                                className="w-32 h-8 bg-black/40 border-gold/20 text-xs"
-                                data-ocid="admin.select"
+                      (orders || []).map((order) => {
+                        const principalStr = order.user
+                          ? order.user.toString()
+                          : "";
+                        return (
+                          <TableRow
+                            key={order.id.toString()}
+                            className="border-gold/10 hover:bg-gold/5"
+                            data-ocid="admin.row"
+                          >
+                            <TableCell className="font-mono text-sm">
+                              #{order.id.toString()}
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-xs font-mono text-muted-foreground">
+                                {principalStr
+                                  ? `${principalStr.slice(0, 10)}…`
+                                  : "—"}
+                              </p>
+                            </TableCell>
+                            <TableCell className="max-w-[220px]">
+                              <ul className="space-y-1">
+                                {(order.items || []).map((item, iIdx) => {
+                                  const qty = Number(item.quantity);
+                                  const priceCents = Number(item.priceCents);
+                                  const linePrice = `₹${((priceCents * qty) / 100).toFixed(0)}`;
+                                  return (
+                                    <li
+                                      key={`order-${order.id}-${iIdx}`}
+                                      className="text-xs"
+                                    >
+                                      <span className="text-foreground font-medium">
+                                        {item.productName}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {" "}
+                                        ×{qty}
+                                      </span>
+                                      <span className="text-gold ml-1">
+                                        — {linePrice}
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </TableCell>
+                            <TableCell className="text-gold font-bold text-base">
+                              ₹{(Number(order.totalCents) / 100).toFixed(2)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="text-[10px] tracking-widest">
+                                {order.status.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={order.status}
+                                onValueChange={(v) =>
+                                  handleStatusUpdate(order.id, v as OrderStatus)
+                                }
+                                disabled={updatingStatus}
                               >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.values(OrderStatus).map((s) => (
-                                  <SelectItem
-                                    key={s}
-                                    value={s}
-                                    className="text-xs"
-                                  >
-                                    {s.toUpperCase()}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                                <SelectTrigger
+                                  className="w-32 h-8 bg-black/40 border-gold/20 text-xs"
+                                  data-ocid="admin.select"
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.values(OrderStatus).map((s) => (
+                                    <SelectItem
+                                      key={s}
+                                      value={s}
+                                      className="text-xs"
+                                    >
+                                      {s.toUpperCase()}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -587,6 +638,7 @@ export function AdminPage() {
             )}
           </TabsContent>
 
+          {/* STRIPE TAB */}
           <TabsContent value="stripe">
             <div className="max-w-lg">
               <div className="flex items-center gap-3 mb-6">
@@ -595,19 +647,105 @@ export function AdminPage() {
                   STRIPE CONFIGURATION
                 </h2>
               </div>
+
+              {/* Status banner */}
+              {stripeConfigured ? (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-3 p-4 rounded-xl border border-green-500/30 bg-green-500/5 mb-6"
+                  data-ocid="admin.success_state"
+                >
+                  <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-green-300 font-semibold text-sm tracking-wide">
+                      Stripe is active
+                    </p>
+                    <p className="text-green-400/60 text-xs mt-0.5">
+                      Card checkout is enabled for all users.
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                <div
+                  className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 mb-6"
+                  data-ocid="admin.error_state"
+                >
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-amber-300 font-semibold text-sm tracking-wide">
+                      Stripe is not configured
+                    </p>
+                    <p className="text-amber-400/60 text-xs mt-0.5">
+                      Card checkout is disabled. Enter your secret key below to
+                      enable it.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions callout */}
+              <div className="glass-card rounded-xl p-4 mb-4 border border-gold/10 space-y-3">
+                <p className="text-gold/80 text-xs tracking-widest font-semibold uppercase">
+                  Setup Instructions
+                </p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Stripe must be configured after each new deployment. Your key
+                  is stored securely in the backend canister.
+                </p>
+                <ol className="space-y-2">
+                  {[
+                    {
+                      step: "1",
+                      text: "Get your key",
+                      sub: "stripe.com → Developers → API Keys",
+                      link: "https://dashboard.stripe.com/apikeys",
+                    },
+                    {
+                      step: "2",
+                      text: "Paste it below",
+                      sub: "Use sk_test_ for testing or sk_live_ for real payments",
+                      link: null,
+                    },
+                    {
+                      step: "3",
+                      text: "Click Save",
+                      sub: "Checkout activates instantly for all users",
+                      link: null,
+                    },
+                  ].map(({ step, text, sub, link }) => (
+                    <li key={step} className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-[10px] font-bold shrink-0 mt-0.5">
+                        {step}
+                      </span>
+                      <div>
+                        <span className="text-xs text-foreground/80 font-medium">
+                          {text}
+                        </span>
+                        {link ? (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-1.5 text-[10px] text-gold/60 hover:text-gold inline-flex items-center gap-0.5 transition-colors"
+                          >
+                            {sub} <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {sub}
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
               <div
                 className="glass-card rounded-xl p-6 space-y-6"
                 data-ocid="admin.card"
               >
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-black/30">
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full ${stripeConfigured ? "bg-green-400" : "bg-red-400"}`}
-                  />
-                  <span className="text-sm">
-                    Stripe is{" "}
-                    {stripeConfigured ? "configured" : "not configured"}
-                  </span>
-                </div>
                 <div className="space-y-2">
                   <Label className="text-gold/70 text-xs tracking-widest">
                     SECRET KEY
@@ -616,7 +754,7 @@ export function AdminPage() {
                     type="password"
                     value={stripeKey}
                     onChange={(e) => setStripeKey(e.target.value)}
-                    placeholder="sk_live_..."
+                    placeholder="sk_live_... or sk_test_..."
                     className="bg-black/40 border-gold/30 focus:border-gold font-mono text-sm"
                     data-ocid="admin.input"
                   />

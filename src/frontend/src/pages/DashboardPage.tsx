@@ -2,9 +2,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit2, Loader2, Package, Save, User } from "lucide-react";
+import {
+  Edit2,
+  Loader2,
+  Package,
+  RefreshCw,
+  Save,
+  ShoppingBag,
+  User,
+} from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrderStatus } from "../backend.d";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -23,10 +31,31 @@ export function DashboardPage() {
   const { identity, login } = useInternetIdentity();
   const isLoggedIn = !!identity;
   const { data: profile, isLoading: profileLoading } = useUserProfile();
-  const { data: orders, isLoading: ordersLoading } = useOrders();
+  const {
+    data: orders,
+    isLoading: ordersLoading,
+    refetch: refetchOrders,
+    isFetching: ordersFetching,
+  } = useOrders();
   const { mutateAsync: saveProfile, isPending: saving } = useSaveProfile();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
+
+  // Stats computed directly from order data
+  // No product ID lookups needed -- names and prices are stored in each order item
+  const stats = useMemo(() => {
+    if (!orders || orders.length === 0)
+      return { totalOrders: 0, totalItems: 0, totalSpent: 0 };
+    const totalOrders = orders.length;
+    const totalItems = orders.reduce(
+      (sum, o) => sum + o.items.reduce((s, i) => s + Number(i.quantity), 0),
+      0,
+    );
+    const totalSpent = orders.reduce((sum, o) => sum + Number(o.totalCents), 0);
+    return { totalOrders, totalItems, totalSpent };
+  }, [orders]);
+
+  const displayName = profile?.name || "";
 
   function startEdit() {
     setName(profile?.name || "");
@@ -68,11 +97,11 @@ export function DashboardPage() {
 
   return (
     <main className="min-h-screen pt-24 pb-20 px-6">
-      <div className="container mx-auto max-w-4xl">
+      <div className="container mx-auto max-w-5xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-12"
+          className="mb-8"
         >
           <p className="text-gold text-xs tracking-[0.4em] font-semibold mb-2 uppercase">
             Account
@@ -80,10 +109,49 @@ export function DashboardPage() {
           <h1 className="font-display text-6xl tracking-widest gold-text">
             DASHBOARD
           </h1>
+          {displayName && (
+            <p className="text-muted-foreground mt-2 text-lg">
+              Welcome back,{" "}
+              <span className="text-gold font-semibold">{displayName}</span>
+            </p>
+          )}
+        </motion.div>
+
+        {/* Stats row */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="grid grid-cols-3 gap-4 mb-8"
+        >
+          <div className="glass-card rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground tracking-widest mb-1">
+              ORDERS
+            </p>
+            <p className="font-display text-3xl gold-text">
+              {stats.totalOrders}
+            </p>
+          </div>
+          <div className="glass-card rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground tracking-widest mb-1">
+              ITEMS
+            </p>
+            <p className="font-display text-3xl gold-text">
+              {stats.totalItems}
+            </p>
+          </div>
+          <div className="glass-card rounded-xl p-4 text-center">
+            <p className="text-xs text-muted-foreground tracking-widest mb-1">
+              SPENT
+            </p>
+            <p className="font-display text-3xl gold-text">
+              ₹{(stats.totalSpent / 100).toFixed(0)}
+            </p>
+          </div>
         </motion.div>
 
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Profile */}
+          {/* Profile card */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -163,11 +231,13 @@ export function DashboardPage() {
                   <p className="text-xs text-muted-foreground tracking-widest mb-1">
                     NAME
                   </p>
-                  <p className="font-semibold">{profile?.name || "Not set"}</p>
+                  <p className="font-semibold text-lg">
+                    {profile?.name || "Not set"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground tracking-widest mb-1">
-                    PRINCIPAL
+                    ACCOUNT ID
                   </p>
                   <p className="text-xs font-mono text-gold/70 break-all">
                     {identity?.getPrincipal().toString()}
@@ -177,7 +247,7 @@ export function DashboardPage() {
             )}
           </motion.div>
 
-          {/* Orders */}
+          {/* Orders card */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -185,9 +255,24 @@ export function DashboardPage() {
             className="glass-card rounded-xl p-6 space-y-4"
             data-ocid="dashboard.card"
           >
-            <div className="flex items-center gap-3">
-              <Package className="w-5 h-5 text-gold" />
-              <h2 className="font-display text-xl tracking-widest">ORDERS</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Package className="w-5 h-5 text-gold" />
+                <h2 className="font-display text-xl tracking-widest">
+                  MY ORDERS
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => refetchOrders()}
+                disabled={ordersFetching}
+                className="text-gold/50 hover:text-gold transition-colors disabled:opacity-30"
+                title="Refresh orders"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${ordersFetching ? "animate-spin" : ""}`}
+                />
+              </button>
             </div>
 
             {ordersLoading ? (
@@ -206,28 +291,76 @@ export function DashboardPage() {
               >
                 <Package className="w-10 h-10 text-gold/20 mx-auto mb-3" />
                 <p className="text-muted-foreground text-sm">No orders yet</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  Tap "BUY NOW" in your cart to save an order here
+                </p>
+                <button
+                  type="button"
+                  onClick={() => refetchOrders()}
+                  className="text-xs text-gold/50 hover:text-gold mt-3 underline underline-offset-2"
+                >
+                  Refresh
+                </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                 {orders.map((order, idx) => (
                   <div
                     key={order.id.toString()}
-                    className="flex items-center justify-between p-3 bg-black/30 rounded-lg border border-gold/10"
+                    className="p-4 bg-black/30 rounded-lg border border-gold/10"
                     data-ocid={`dashboard.item.${idx + 1}`}
                   >
-                    <div>
-                      <p className="text-sm font-semibold">
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="text-sm font-bold tracking-wide">
                         Order #{order.id.toString()}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        ${(Number(order.totalCents) / 100).toFixed(2)}
-                      </p>
+                      <Badge
+                        className={`text-[10px] tracking-widest border ${
+                          STATUS_COLOR[order.status] || ""
+                        }`}
+                      >
+                        {order.status.toUpperCase()}
+                      </Badge>
                     </div>
-                    <Badge
-                      className={`text-[10px] tracking-widest border ${STATUS_COLOR[order.status] || ""}`}
-                    >
-                      {order.status.toUpperCase()}
-                    </Badge>
+
+                    {/* Items — names and prices come directly from the order snapshot */}
+                    {order.items && order.items.length > 0 && (
+                      <div className="space-y-1 mb-3">
+                        {order.items.map((item, iIdx) => {
+                          const qty = Number(item.quantity);
+                          const priceCents = Number(item.priceCents);
+                          const lineTotal = `₹${((priceCents * qty) / 100).toFixed(0)}`;
+                          return (
+                            <div
+                              key={`${order.id}-${iIdx}`}
+                              className="flex items-center justify-between py-1 border-b border-gold/5 last:border-0"
+                            >
+                              <div className="flex items-center gap-2">
+                                <ShoppingBag className="w-3 h-3 text-gold/40" />
+                                <span className="text-xs font-medium">
+                                  {item.productName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  x{qty}
+                                </span>
+                              </div>
+                              <span className="text-xs text-gold font-semibold">
+                                {lineTotal}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs text-muted-foreground">
+                        ORDER TOTAL
+                      </span>
+                      <span className="text-gold font-bold text-base">
+                        ₹{(Number(order.totalCents) / 100).toFixed(0)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

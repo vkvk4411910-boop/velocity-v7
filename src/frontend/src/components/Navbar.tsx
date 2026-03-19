@@ -18,10 +18,9 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useIsAdmin } from "../hooks/useQueries";
 import { useCartStore } from "../store/cartStore";
 
-const NAV_ITEMS = [
+const NAV_LINKS = [
   { label: "HOME", path: "/", Icon: Home },
   { label: "SHOP", path: "/shop", Icon: ShoppingBag },
-  { label: "CART", path: "/cart", Icon: ShoppingCart },
   { label: "ME", path: "/dashboard", Icon: LayoutDashboard },
 ];
 
@@ -57,35 +56,11 @@ export function Navbar() {
     >
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3" data-ocid="nav.link">
-        {/* Flat hexagonal V7 badge */}
-        <div
-          style={{
-            width: 42,
-            height: 42,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "8px",
-            background: isDayMode
-              ? "linear-gradient(135deg,#1a6ea0,#60C8E8)"
-              : "linear-gradient(135deg,#C9A84C,#FFD700)",
-            boxShadow: isDayMode
-              ? "0 0 14px rgba(96,200,232,0.4)"
-              : "0 0 14px rgba(201,168,76,0.45)",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'Bebas Neue', sans-serif",
-              fontSize: "18px",
-              color: isDayMode ? "#fff" : "#000",
-              fontWeight: 900,
-              letterSpacing: "0.04em",
-            }}
-          >
-            V7
-          </span>
-        </div>
+        <img
+          src="/assets/generated/v7-logo.dim_400x400.png"
+          alt="V7 Logo"
+          style={{ width: 42, height: 42, borderRadius: 8, objectFit: "cover" }}
+        />
         <span
           className="font-display text-2xl tracking-widest hidden sm:block"
           style={{
@@ -102,37 +77,59 @@ export function Navbar() {
         </span>
       </Link>
 
-      {/* Nav items — flat icon + label */}
+      {/* Nav items */}
       <div className="flex items-center gap-1 md:gap-2">
-        {NAV_ITEMS.map(({ label, path, Icon }) => (
-          <div key={path} className="relative">
-            <Link to={path} data-ocid="nav.link">
-              <motion.div
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
-                style={{ color: gold }}
+        {NAV_LINKS.map(({ label, path, Icon }) => (
+          <Link key={path} to={path} data-ocid="nav.link">
+            <motion.div
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
+              style={{ color: gold }}
+            >
+              <Icon className="w-[18px] h-[18px]" style={{ color: gold }} />
+              <span
+                className="text-[9px] font-semibold tracking-widest hidden md:block"
+                style={{ color: textMuted }}
               >
-                <Icon className="w-[18px] h-[18px]" style={{ color: gold }} />
-                <span
-                  className="text-[9px] font-semibold tracking-widest hidden md:block"
-                  style={{ color: textMuted }}
-                >
-                  {label}
-                </span>
-              </motion.div>
-            </Link>
-            {label === "CART" && cartCount > 0 && (
-              <Badge
-                className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[9px] text-black border-0 font-bold"
-                style={{ background: gold }}
-                data-ocid="nav.cart.badge"
-              >
-                {cartCount}
-              </Badge>
-            )}
-          </div>
+                {label}
+              </span>
+            </motion.div>
+          </Link>
         ))}
+
+        {/* Cart button — opens sidebar */}
+        <div className="relative">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => cartStore.openCart()}
+            className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
+            style={{ color: gold }}
+            data-ocid="nav.cart_button"
+          >
+            <ShoppingCart
+              className="w-[18px] h-[18px]"
+              style={{ color: gold }}
+            />
+            <span
+              className="text-[9px] font-semibold tracking-widest hidden md:block"
+              style={{ color: textMuted }}
+            >
+              CART
+            </span>
+          </motion.button>
+          {cartCount > 0 && (
+            <Badge
+              className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[9px] text-black border-0 font-bold"
+              style={{ background: gold }}
+              data-ocid="nav.cart.badge"
+            >
+              {cartCount}
+            </Badge>
+          )}
+        </div>
 
         {isAdmin && (
           <Link to="/admin" data-ocid="nav.admin.link">
