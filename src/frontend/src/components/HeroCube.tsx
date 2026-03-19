@@ -1,22 +1,113 @@
 import { Environment } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useTheme } from "../context/ThemeContext";
+
+interface DragState {
+  isDragging: boolean;
+  lastX: number;
+  lastY: number;
+  velocityX: number;
+  velocityY: number;
+  userRotX: number;
+  userRotY: number;
+}
+
+function useDragRotation() {
+  const { gl } = useThree();
+  const drag = useRef<DragState>({
+    isDragging: false,
+    lastX: 0,
+    lastY: 0,
+    velocityX: 0,
+    velocityY: 0,
+    userRotX: 0,
+    userRotY: 0,
+  });
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const onPointerDown = (e: PointerEvent) => {
+      drag.current.isDragging = true;
+      drag.current.lastX = e.clientX;
+      drag.current.lastY = e.clientY;
+      drag.current.velocityX = 0;
+      drag.current.velocityY = 0;
+      canvas.setPointerCapture(e.pointerId);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!drag.current.isDragging) return;
+      const dx = e.clientX - drag.current.lastX;
+      const dy = e.clientY - drag.current.lastY;
+      drag.current.velocityX = dy * 0.01;
+      drag.current.velocityY = dx * 0.01;
+      drag.current.userRotX += dy * 0.01;
+      drag.current.userRotY += dx * 0.01;
+      drag.current.lastX = e.clientX;
+      drag.current.lastY = e.clientY;
+    };
+
+    const onPointerUp = () => {
+      drag.current.isDragging = false;
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointerleave", onPointerUp);
+
+    return () => {
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointerleave", onPointerUp);
+    };
+  }, [gl]);
+
+  return drag;
+}
 
 function DayCube() {
   const meshRef = useRef<THREE.Mesh>(null);
   const edgesRef = useRef<THREE.LineSegments>(null);
+  const drag = useDragRotation();
 
   useFrame((state) => {
     if (!meshRef.current || !edgesRef.current) return;
     const t = state.clock.getElapsedTime();
-    meshRef.current.rotation.x = t * 0.3;
-    meshRef.current.rotation.y = t * 0.5;
-    edgesRef.current.rotation.x = t * 0.3;
-    edgesRef.current.rotation.y = t * 0.5;
+    const d = drag.current;
+
+    if (d.isDragging) {
+      // While dragging: apply user rotation directly
+      meshRef.current.rotation.x = d.userRotX;
+      meshRef.current.rotation.y = d.userRotY;
+    } else {
+      // Decay velocity
+      d.velocityX *= 0.92;
+      d.velocityY *= 0.92;
+      d.userRotX += d.velocityX;
+      d.userRotY += d.velocityY;
+
+      const momentum = Math.abs(d.velocityX) + Math.abs(d.velocityY);
+
+      if (momentum > 0.001) {
+        // Momentum phase: apply user rotation with decaying velocity
+        meshRef.current.rotation.x = d.userRotX;
+        meshRef.current.rotation.y = d.userRotY;
+      } else {
+        // Auto-rotate phase: blend back to auto-rotation
+        meshRef.current.rotation.x = t * 0.3;
+        meshRef.current.rotation.y = t * 0.5;
+      }
+    }
+
+    edgesRef.current.rotation.x = meshRef.current.rotation.x;
+    edgesRef.current.rotation.y = meshRef.current.rotation.y;
     meshRef.current.position.y = Math.sin(t * 0.8) * 0.15;
-    edgesRef.current.position.y = Math.sin(t * 0.8) * 0.15;
+    edgesRef.current.position.y = meshRef.current.position.y;
   });
 
   return (
@@ -60,16 +151,37 @@ function DayCube() {
 function NightCube() {
   const meshRef = useRef<THREE.Mesh>(null);
   const edgesRef = useRef<THREE.LineSegments>(null);
+  const drag = useDragRotation();
 
   useFrame((state) => {
     if (!meshRef.current || !edgesRef.current) return;
     const t = state.clock.getElapsedTime();
-    meshRef.current.rotation.x = t * 0.3;
-    meshRef.current.rotation.y = t * 0.5;
-    edgesRef.current.rotation.x = t * 0.3;
-    edgesRef.current.rotation.y = t * 0.5;
+    const d = drag.current;
+
+    if (d.isDragging) {
+      meshRef.current.rotation.x = d.userRotX;
+      meshRef.current.rotation.y = d.userRotY;
+    } else {
+      d.velocityX *= 0.92;
+      d.velocityY *= 0.92;
+      d.userRotX += d.velocityX;
+      d.userRotY += d.velocityY;
+
+      const momentum = Math.abs(d.velocityX) + Math.abs(d.velocityY);
+
+      if (momentum > 0.001) {
+        meshRef.current.rotation.x = d.userRotX;
+        meshRef.current.rotation.y = d.userRotY;
+      } else {
+        meshRef.current.rotation.x = t * 0.3;
+        meshRef.current.rotation.y = t * 0.5;
+      }
+    }
+
+    edgesRef.current.rotation.x = meshRef.current.rotation.x;
+    edgesRef.current.rotation.y = meshRef.current.rotation.y;
     meshRef.current.position.y = Math.sin(t * 0.8) * 0.15;
-    edgesRef.current.position.y = Math.sin(t * 0.8) * 0.15;
+    edgesRef.current.position.y = meshRef.current.position.y;
   });
 
   return (
@@ -114,7 +226,7 @@ export function HeroCube() {
   return (
     <Canvas
       camera={{ position: [0, 0, 6.5], fov: 42 }}
-      style={{ width: "100%", height: "100%" }}
+      style={{ width: "100%", height: "100%", cursor: "grab" }}
       gl={{ antialias: true, alpha: true }}
       dpr={[1, 2]}
     >
